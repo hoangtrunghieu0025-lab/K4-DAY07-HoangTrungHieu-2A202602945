@@ -80,13 +80,13 @@ Chạy `ChunkingStrategyComparator().compare(body, chunk_size=200)` trên nội 
 
 | Thành viên phụ trách trình bày | Cấu hình được gán | Cách chia và lý do thử |
 |---|---|---|
-| Đinh Đức Thái | `fixed_220` | Cắt 220 ký tự, chồng lấn 30 ký tự để có đường cơ sở đơn giản và giảm mất thông tin ở ranh giới. |
+| Đinh Đức Thái | `heading_320` | Cắt theo tiêu đề Markdown; khi mục dài, lặp lại tiêu đề trên các phần con để giữ ngữ cảnh. |
 | Trần Hồng Sơn | `sentence_2` | Ghép tối đa hai câu; kỳ vọng giữ nguyên phát biểu về điều kiện và mức học bổng. |
 | Hoàng Trung Hiếu | `metadata_enriched(recursive_280)` | Bọc `RecursiveChunker(280)` rồi chèn tiền tố `[title \| institution \| audience]` vào đầu mỗi chunk trước khi embed; thử xem đưa metadata vào chính vector có thay thế được `metadata_filter` không. |
-| Bùi Tùng Dương | `heading_320` | Cắt theo tiêu đề Markdown; khi mục dài, lặp lại tiêu đề trên các phần con để giữ ngữ cảnh. |
+| Bùi Tùng Dương | `fixed_size(500, overlap=50)` | Cắt 500 ký tự, chồng lấn 50 ký tự làm đường cơ sở đơn giản; overlap giữ khoảng 10% ngữ cảnh ở ranh giới chunk. |
 | Đàm Quang Sơn | `paragraph_360` | Gom các đoạn Markdown liền kề tới 360 ký tự; giữ đoạn và hàng bảng khi vừa giới hạn. |
 
-Hai chiến lược tùy chỉnh nằm trong `bench.py` (`HeadingChunker`, `ParagraphChunker`). Ý chính của chiến lược theo tiêu đề:
+Hai chiến lược tùy chỉnh nằm trong `bench.py` (`HeadingChunker` của Đinh Đức Thái, `ParagraphChunker` của Đàm Quang Sơn). Ý chính của chiến lược theo tiêu đề:
 
 ```python
 sections = re.split(r"(?=^#{1,3} )", text, flags=re.MULTILINE)
@@ -100,10 +100,10 @@ Chiến lược theo đoạn tách tại dòng trắng, gom đoạn đến giớ
 
 | Thành viên / cấu hình | Số chunk / độ dài TB | Điểm truy xuất (/10) | Điểm mạnh | Điểm yếu |
 |-----------|----------|----------------------|-----------|----------|
-| Đinh Đức Thái / `fixed_220` | 43 / 202,6 | 7 | Q1, Q3, Q5 đúng ở top-1. | Cắt ngang hàng bảng GPA ở Q2. |
+| Đinh Đức Thái / `heading_320` | 41 / 219,6 | 7 | Q4 lên top-1 nhờ lặp tiêu đề RMIT. | Q5 chỉ ở top-2; Q2 vẫn lỗi. |
 | Trần Hồng Sơn / `sentence_2` | 32 / 237,2 | 7 | Ít chunk hơn, Q1, Q3, Q5 đúng ở top-1. | Q2 không tìm được hàng GPA. |
 | Hoàng Trung Hiếu / `metadata_enriched(recursive_280)` | 45 / 238,0 | 5 (đo lại bằng embedder ngữ nghĩa, chấm mức nội dung) | Tăng từ 1/10 lên 5/10 so với chunker trần cùng tham số, nhờ tiền tố metadata. | Vẫn không đưa được bảng `đ/tháng` của UET vào top-3 ở Q3. |
-| Bùi Tùng Dương / `heading_320` | 41 / 219,6 | 7 | Q4 lên top-1 nhờ lặp tiêu đề RMIT. | Q5 chỉ ở top-2; Q2 vẫn lỗi. |
+| Bùi Tùng Dương / `fixed_size(500, overlap=50)` | 20 / 414,0 | 8 evidence-rank (tự báo cáo) | Bằng chứng ở top-1 cho 4/5 câu. | Q2 không chunk nào trong top-3 chứa đủ điều kiện GPA. |
 | Đàm Quang Sơn / `paragraph_360` | 32 / 237,0 | 6 | Q2 có hàng GPA ở top-3. | Q3/Q4 chỉ ở top-2/3; bộ trả lời chọn sai dòng ở Q5. |
 
 ### Phụ lục 2A — Đối chiếu với báo cáo cá nhân (tổng hợp 19/09/2026)
@@ -112,10 +112,10 @@ Cả năm báo cáo cá nhân đã nộp được đối chiếu với bảng so
 
 | Thành viên | Cấu hình | Backend đã dùng | Điểm tự báo cáo | Điểm bảng nhóm |
 |---|---|---|---|---|
-| Đinh Đức Thái | `fixed_220` | MockEmbedder (mục 5 ghi rõ) | 3/5 document hit; tự đánh giá 9/10 | 7/10 |
+| Đinh Đức Thái | `heading_320` | MockEmbedder (mục 5 ghi rõ) | 3/5 document hit; tự đánh giá 9/10 — **báo cáo không nêu cấu hình chunker nào** | 7/10 |
 | Trần Hồng Sơn | `sentence_2` | MockEmbedder | **3/10** (tự ghi), đối chiếu TF-IDF 7/10 | 7/10 |
 | Hoàng Trung Hiếu | `metadata_enriched(recursive_280)` | `paraphrase-multilingual-MiniLM-L12-v2` | **5/10** chấm ở mức nội dung | 7/10 |
-| Bùi Tùng Dương | `heading_320` *(được gán)* | `TfidfEmbedder` | 8/10 evidence-rank — nhưng **chạy `FixedSizeChunker(500, overlap=50)`, không phải heading** | 7/10 |
+| Bùi Tùng Dương | `fixed_size(500, overlap=50)` | `TfidfEmbedder` | 8/10 evidence-rank; báo cáo nêu rõ cấu hình và 20 chunk — nhất quán | 7/10 |
 | Đàm Quang Sơn | `paragraph_360` | `TfidfEmbedder` | 6/10 | 6/10 |
 
 Chỉ `paragraph_360` là khớp giữa hai nguồn. Bốn cấu hình còn lại lệch vì bảng nhóm đo bằng TF-IDF trong khi ba thành viên chạy bằng Mock hoặc bằng embedder ngữ nghĩa.
@@ -128,9 +128,9 @@ Chỉ `paragraph_360` là khớp giữa hai nguồn. Bốn cấu hình còn lạ
 
 1. Thống nhất một backend, chạy lại cả năm cấu hình, cập nhật bảng so sánh — hoặc giữ nguyên số nhưng ghi tên backend cạnh mỗi dòng.
 2. Đinh Đức Thái dùng bộ 5 câu hỏi khác với bộ chính thức ở mục 3; cần chạy lại bằng đúng bộ câu hỏi chung.
-3. **Chưa ai thực sự chạy chunker theo heading.** Báo cáo cá nhân của Bùi Tùng Dương ghi chiến lược là `FixedSizeChunker(chunk_size=500, overlap=50)` → 20 chunk, không phải `heading_320` như bảng phân công. `K4_VARIANT.md` yêu cầu **bắt buộc**: *"Ít nhất một thành viên thử chia nhỏ (chunking) theo tiêu đề/mục (heading/section)"*. Đây là tiêu chí cứng của đề, cần một người chạy thật trước khi nộp.
+3. **Cấu hình `heading_320` chưa có bằng chứng đã chạy.** Đinh Đức Thái là người nhận cấu hình này, nhưng báo cáo cá nhân của bạn ấy **không nêu cấu hình chunker nào** ở mục 5, và mục 2 (nơi lẽ ra mô tả cách chia) còn để nguyên placeholder. `K4_VARIANT.md` yêu cầu **bắt buộc**: *"Ít nhất một thành viên thử chia nhỏ (chunking) theo tiêu đề/mục (heading/section)"*. Cần Đinh Đức Thái xác nhận và bổ sung bằng chứng, hoặc chạy lại trước khi nộp.
 
-4. **Hai thành viên trùng chiến lược.** `FixedSizeChunker(500, overlap=50)` của Bùi Tùng Dương và của Hoàng Trung Hiếu là cùng một cấu hình, cùng cho 20 chunk trên corpus 7 tài liệu (đã kiểm chứng lại). Lab yêu cầu *"Chiến lược chunking không được trùng nhau"*, nên một trong hai phải đổi.
+4. **Số chunk của `fixed_size` không khớp giữa hai nguồn.** Báo cáo cá nhân của Bùi Tùng Dương ghi `FixedSizeChunker(chunk_size=500, overlap=50)` → **20 chunk** (con số này đã được kiểm chứng lại trên corpus và đúng). Bảng so sánh nhóm trước đó ghi 43 chunk / 202,6 ký tự — con số của một cấu hình khác (`fixed_220`, tức 220 ký tự, overlap 30). Bảng đã được sửa theo báo cáo cá nhân; nếu nhóm thực sự đo bằng `fixed_220` thì cần thống nhất lại cấu hình nào là chính thức.
 
 5. Đàm Quang Sơn và Bùi Tùng Dương đều ghi rõ máy không có `sentence-transformers` nên phải dùng TF-IDF. Đây là lý do backend phân mảnh, và là lựa chọn hợp lệ theo Phụ lục B của lab — miễn là ghi rõ trong báo cáo, điều cả hai đã làm.
 
