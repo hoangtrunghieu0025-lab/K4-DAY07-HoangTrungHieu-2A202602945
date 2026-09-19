@@ -1,4 +1,3 @@
-Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights:  38%|███▊      | 75/199 [00:00<00:00, 744.97it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 1457.03it/s]
 ==============================================================================
 Chien luoc      : metadata_enriched(recursive_280)
 Embedding backend: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
@@ -8,43 +7,43 @@ Do dai chunk    : min=62 / tb=238 / max=361
 metadata_filter : BAT
 ==============================================================================
 
-[Q1] Sinh viên cần GPA tích lũy bao nhiêu để nộp học bổng thành tích RMIT?
-   1. score=+0.7650  doc_id=rmit-current-student-scholarship-2026  audience=student
-      [Học bổng thành tích cho sinh viên RMIT Việt Nam đang học năm 2026 | rmit-vietnam | student] Ứng viên được xếp...
-   2. score=+0.7544  doc_id=scholarship-renewal-policy  audience=student
-      [Tiêu chí duy trì học bổng đầu vào và hỗ trợ tài chính VinUni | vinuni | student] Với học bổng toàn phần hoặc ...
-   3. score=+0.7202  doc_id=rmit-current-student-scholarship-2026  audience=student
-      [Học bổng thành tích cho sinh viên RMIT Việt Nam đang học năm 2026 | rmit-vietnam | student] Điều kiện xét gồm...
+[Q1] Học bổng President's Excellence của VinUni chi trả những gì?
+   1. score=+0.7634  doc_id=undergraduate-scholarships  audience=student
+      [Học bổng đầu vào bậc cử nhân VinUni | vinuni | student] Theo trang tuyển sinh, học bổng President’s Excellenc...
+   2. score=+0.6938  doc_id=undergraduate-scholarships  audience=student
+      [Học bổng đầu vào bậc cử nhân VinUni | vinuni | student] # Học bổng đầu vào bậc cử nhân ## Tài trợ học phí và ...
+   3. score=+0.6788  doc_id=undergraduate-scholarships  audience=student
+      [Học bổng đầu vào bậc cử nhân VinUni | vinuni | student] Học bổng tài năng dành cho ứng viên có thành tích học...
 
-[Q2] Học bổng toàn phần cần giữ GPA bao nhiêu để được duy trì?
-   1. score=+0.8075  doc_id=scholarship-renewal-policy  audience=student
+[Q2] Sinh viên VinUni cần GPA tối thiểu bao nhiêu để duy trì học bổng 100%?
+   1. score=+0.8670  doc_id=scholarship-renewal-policy  audience=student
       [Tiêu chí duy trì học bổng đầu vào và hỗ trợ tài chính VinUni | vinuni | student] Với học bổng toàn phần hoặc ...
-   2. score=+0.7718  doc_id=scholarship-renewal-policy  audience=student
+   2. score=+0.8163  doc_id=scholarship-renewal-policy  audience=student
       [Tiêu chí duy trì học bổng đầu vào và hỗ trợ tài chính VinUni | vinuni | student] | Học bổng 50%, 60%, 70%, 80...
-   3. score=+0.7503  doc_id=scholarship-renewal-policy  audience=student
+   3. score=+0.7888  doc_id=scholarship-renewal-policy  audience=student
       [Tiêu chí duy trì học bổng đầu vào và hỗ trợ tài chính VinUni | vinuni | student] | Khoản hỗ trợ | Ngưỡng và đ...
 
-[Q3] Trường hỗ trợ bao nhiêu tiền mỗi tháng?
-      filter = {'audience': 'student'}
-   1. score=+0.5442  doc_id=ueh-learning-support-scholarship  audience=student
-      [Học bổng hỗ trợ học tập UEH | ueh | student] Học bổng toàn phần bằng 100% học phí trung bình của 15 tín chỉ, ...
-   2. score=+0.5326  doc_id=undergraduate-scholarships  audience=student
-      [Học bổng đầu vào bậc cử nhân VinUni | vinuni | student] # Học bổng đầu vào bậc cử nhân ## Tài trợ học phí và ...
-   3. score=+0.5165  doc_id=ueh-learning-support-scholarship  audience=student
-      [Học bổng hỗ trợ học tập UEH | ueh | student] Sinh viên thuộc diện mồ côi, hộ nghèo, cận nghèo hoặc có hoàn cả...
-
-[Q4] Điều kiện xét học bổng hỗ trợ học tập cho sinh viên hoàn cảnh khó khăn là gì?
-   1. score=+0.6783  doc_id=undergraduate-scholarships  audience=student
-      [Học bổng đầu vào bậc cử nhân VinUni | vinuni | student] Các quỹ tài trợ tư nhân hướng tới ứng viên đã đạt học...
-   2. score=+0.6715  doc_id=uet-merit-scholarship-2025-2026  audience=student
-      [Học bổng khuyến khích học tập UET học kỳ I năm 2025–2026 | uet | student] Quyết định cấp học bổng cho sinh vi...
-   3. score=+0.6702  doc_id=undergraduate-scholarships  audience=student
-      [Học bổng đầu vào bậc cử nhân VinUni | vinuni | student] Mức học bổng cuối cùng do Hội đồng Tuyển sinh đánh gi...
-
-[Q5] Học bổng khuyến khích học tập UET trả bao nhiêu tiền mỗi tháng?
-   1. score=+0.7993  doc_id=uet-merit-scholarship-2025-2026  audience=student
-      [Học bổng khuyến khích học tập UET học kỳ I năm 2025–2026 | uet | student] Riêng chương trình CNTT chất lượng ...
-   2. score=+0.7590  doc_id=uet-merit-scholarship-2025-2026  audience=student
+[Q3] Ở UET, học bổng loại Giỏi cho khóa QH-2023 đến QH-2025 là bao nhiêu mỗi tháng?
+   1. score=+0.8248  doc_id=uet-merit-scholarship-2025-2026  audience=student
       [Học bổng khuyến khích học tập UET học kỳ I năm 2025–2026 | uet | student] | Chương trình và khóa | Xuất sắc |...
-   3. score=+0.7275  doc_id=uet-merit-scholarship-2025-2026  audience=student
+   2. score=+0.8195  doc_id=uet-merit-scholarship-2025-2026  audience=student
+      [Học bổng khuyến khích học tập UET học kỳ I năm 2025–2026 | uet | student] | CNTT chất lượng cao QH-2022 | 4.1...
+   3. score=+0.7442  doc_id=uet-merit-scholarship-2025-2026  audience=student
+      [Học bổng khuyến khích học tập UET học kỳ I năm 2025–2026 | uet | student] Quyết định cấp học bổng cho sinh vi...
+
+[Q4] Sinh viên RMIT Việt Nam đang học cần bao nhiêu tín chỉ và GPA để xin học bổng thành tích 2026?
+   1. score=+0.8905  doc_id=rmit-current-student-scholarship-2026  audience=student
+      [Học bổng thành tích cho sinh viên RMIT Việt Nam đang học năm 2026 | rmit-vietnam | student] Ứng viên được xếp...
+   2. score=+0.8767  doc_id=rmit-current-student-scholarship-2026  audience=student
+      [Học bổng thành tích cho sinh viên RMIT Việt Nam đang học năm 2026 | rmit-vietnam | student] Điều kiện xét gồm...
+   3. score=+0.8646  doc_id=rmit-business-scholarship-2026  audience=student
+      [Học bổng Cử nhân Kinh doanh RMIT Việt Nam 2026 | rmit-vietnam | student] Ứng viên phải là công dân Việt Nam, ...
+
+[Q5] Ở UEH, mức hỗ trợ tài chính tối đa cho một học kỳ là bao nhiêu?
+      filter = {'audience': 'student'}
+   1. score=+0.7112  doc_id=ueh-learning-support-scholarship  audience=student
+      [Học bổng hỗ trợ học tập UEH | ueh | student] Học bổng toàn phần bằng 100% học phí trung bình của 15 tín chỉ, ...
+   2. score=+0.6643  doc_id=uet-merit-scholarship-2025-2026  audience=student
+      [Học bổng khuyến khích học tập UET học kỳ I năm 2025–2026 | uet | student] Riêng chương trình CNTT chất lượng ...
+   3. score=+0.6503  doc_id=uet-merit-scholarship-2025-2026  audience=student
       [Học bổng khuyến khích học tập UET học kỳ I năm 2025–2026 | uet | student] Quyết định cấp học bổng cho sinh vi...

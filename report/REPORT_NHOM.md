@@ -17,7 +17,7 @@
 **Chủ đề:** Học bổng và hỗ trợ tài chính trong đại học, đối chiếu VinUni, UEH, UET và RMIT Việt Nam.
 
 **Tại sao nhóm chọn chủ đề này?**
-Bảy văn bản được chọn từ các bản nháp trong `data/` vì có nguồn chính thức, con số hoặc điều kiện kiểm chứng được, và ít trùng lặp. Bộ cuối gồm sáu tài liệu dành cho sinh viên và một tài liệu hỗ trợ giảng viên để kiểm thử lọc `audience`; trường `institution` ngăn trộn chính sách giữa các trường. Nội dung được biên tập ngắn bằng tiếng Việt, giữ điều kiện, mức hỗ trợ, mốc thời gian và bảng cần thiết.
+Quy định học bổng là văn bản công khai, có cấu trúc mục rõ ràng và chứa nhiều ngưỡng số cụ thể (GPA 3,2 · 96 tín chỉ · 3.500.000đ/tháng) nên gold answer kiểm chứng được chính xác. Bộ tài liệu gồm sáu văn bản dành cho sinh viên và **một văn bản hỗ trợ giảng viên UEH được giữ lại có chủ ý**: nó dùng chung từ vựng "hỗ trợ tài chính", "mức", "triệu đồng mỗi tháng" với các văn bản sinh viên, nên tạo ra một va chạm thật để kiểm thử `metadata_filter`. Trường `institution` ngăn trộn chính sách giữa bốn trường. Nội dung được biên tập ngắn bằng tiếng Việt, giữ điều kiện, mức hỗ trợ, mốc thời gian và bảng cần thiết.
 
 ### Danh sách tài liệu (Data Inventory)
 
@@ -42,109 +42,75 @@ Số ký tự tính trên phần nội dung sau front matter. Toàn bộ dữ li
 | Trường metadata | Kiểu | Ví dụ giá trị | Tại sao hữu ích cho truy xuất (retrieval)? |
 |----------------|------|---------------|-------------------------------|
 | `doc_id` | string | `scholarship-renewal-policy` | Mã ổn định để đối chiếu file và xóa mọi chunk cùng nguồn. |
-| `title` | string | `Tiêu chí duy trì học bổng đầu vào` | Hiển thị tên nguồn cho người đánh giá. |
+| `title` | string | `Tiêu chí duy trì học bổng đầu vào` | Hiển thị tên nguồn cho người đánh giá; cũng là thành phần của tiền tố trong `metadata_enriched`. |
 | `source_url` | HTTPS URL | `https://policy.vinuni.edu.vn/...` | Truy vết và kiểm tra lại điều khoản gốc. |
 | `retrieved_at` | ngày ISO | `2026-09-19` | Biết thời điểm dữ liệu được thu thập. |
 | `document_version` | string | `GDL-SAM-004-V2.1` | Ưu tiên phiên bản chính sách có số hiệu; `not-stated` nếu nguồn không nêu. |
-| `audience` | enum | `student`, `faculty` | Lọc đúng đối tượng trước khi xếp hạng. |
-| `institution` | string | `vinuni`, `ueh`, `uet`, `rmit-vietnam` | Không trộn điều kiện của các trường khác nhau. |
+| `audience` | enum | `student`, `faculty` | **Chiều lọc chính.** Loại đúng đối tượng trước khi xếp hạng — xem số liệu A/B ở mục 3. |
+| `institution` | string | `vinuni`, `ueh`, `uet`, `rmit-vietnam` | Không trộn điều kiện của các trường khác nhau; bốn trường có ngưỡng GPA khác nhau. |
 | `department` | string | `admissions`, `student-affairs` | Thu hẹp theo đơn vị phụ trách. |
 | `category` | string | `renewal-policy`, `faculty-funding` | Phân biệt điều kiện duy trì, tuyển sinh và hỗ trợ giảng viên. |
 | `language` | string | `vi` | Chọn tài liệu theo ngôn ngữ phần nội dung đã biên tập. |
 
-**Nghiệm thu Checkpoint 2:** `python scripts/check_corpus.py` → `OK: 7 Markdown files; urls.csv and sources.csv match; audiences: faculty, student`.
+**Nghiệm thu Checkpoint 2:** `python scripts/check_corpus.py` → `OK: 7 Markdown files; urls.csv and sources.csv match; audiences: faculty, student`
 
 ---
 
 ## 2. Thiết kế chiến lược (Strategy Design) — Nhóm (15 điểm)
 
-Năm cấu hình dưới đây được chạy lại bằng cùng bộ 7 văn bản, cùng 5 câu hỏi và cùng một bộ mã hóa TF-IDF trong [`bench.py`](../bench.py). Bảng tên là phân công cấu hình để nhóm trình bày; log benchmark chứng minh kết quả của cấu hình, không chứng minh từng thành viên đã tự chạy độc lập.
+### Phân công và cách đo
+
+Năm thành viên, năm chiến lược chia nhỏ khác nhau, không trùng nhau:
+
+| Thành viên | Cấu hình | Ý tưởng |
+|---|---|---|
+| Đinh Đức Thái | `heading_320` | Cắt theo tiêu đề Markdown ATX; section dài thì hạ xuống `RecursiveChunker` và **gắn lại tiêu đề** vào đầu mỗi mảnh con. |
+| Trần Hồng Sơn | `recursive_280` | `RecursiveChunker(chunk_size=280)` — đệ quy xuống sâu theo separator ưu tiên, gom khối lên để tránh chunk vụn. |
+| Hoàng Trung Hiếu | `metadata_enriched(recursive_280)` | Không đổi cách cắt, mà chèn tiền tố `[title \| institution \| audience]` vào đầu mỗi chunk **trước khi embed**. |
+| Bùi Tùng Dương | `fixed_size(500, overlap=50)` | Đường cơ sở đơn giản: 500 ký tự, chồng lấn 10% ở ranh giới. |
+| Đàm Quang Sơn | `paragraph_360` | Tách tại dòng trắng, gom đoạn liền kề tới 360 ký tự, đoạn quá dài thì hạ xuống `RecursiveChunker`. |
+
+**Điều kiện đo của bảng dưới đây.** Mỗi thành viên chạy trên máy mình với backend khác nhau (xem Phụ lục 2A), nên số liệu trong năm báo cáo cá nhân **không so sánh trực tiếp được**. Để có một bảng so sánh công bằng, nhóm chạy lại toàn bộ năm cấu hình trên **cùng một điều kiện**: corpus `data/hoc-bong/` (7 tài liệu), embedder `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, cùng bộ 5 câu hỏi chính thức ở mục 3, `top_k=3`. `HeadingChunker` và `ParagraphChunker` trong [`bench.py`](../bench.py) được **dựng lại theo mô tả trong báo cáo cá nhân** của Đinh Đức Thái và Đàm Quang Sơn để bảng có số liệu kiểm chứng được — đây không phải mã gốc của hai bạn, và điều đó được ghi rõ trong docstring của từng lớp.
+
+Số chunk của bản dựng lại khớp sát số hai bạn tự báo cáo (`paragraph_360`: 32 chunk / 237,0 ký tự — trùng khít; `heading_320`: 42 so với 41), nên bản dựng lại được coi là trung thực với mô tả.
 
 ### Phân tích đường cơ sở (Baseline Analysis)
 
-Chạy `ChunkingStrategyComparator().compare(body, chunk_size=200)` trên nội dung sau front matter của ba tài liệu. Độ dài là số ký tự trung bình mỗi chunk; nhận xét ngữ cảnh dựa trên việc quan sát vị trí điều kiện và bảng Markdown.
+`ChunkingStrategyComparator().compare(body, chunk_size=200)` trên phần thân sau front matter của ba tài liệu:
 
-| Tài liệu | Chiến lược (Strategy) | Số lượng Chunk | Độ dài trung bình | Giữ được ngữ cảnh không? |
+| Tài liệu | Chiến lược | Số chunk | Độ dài TB | Giữ được ngữ cảnh không? |
 |-----------|----------|-------------|------------|-------------------|
-| VinUni học bổng đầu vào | FixedSizeChunker (`fixed_size`) | 8 | 185,1 | Có thể cắt giữa tên học bổng và mức hỗ trợ. |
-| VinUni học bổng đầu vào | SentenceChunker (`by_sentences`) | 4 | 368,5 | Giữ câu giải thích trọn vẹn; chunk dài hơn. |
-| VinUni học bổng đầu vào | RecursiveChunker (`recursive`) | 11 | 133,2 | Dễ truy xuất chi tiết; một số chunk thiếu tên mục. |
-| VinUni duy trì học bổng | FixedSizeChunker (`fixed_size`) | 7 | 199,9 | Có thể cắt ngang một hàng điều kiện GPA. |
-| VinUni duy trì học bổng | SentenceChunker (`by_sentences`) | 4 | 348,8 | Giữ câu ngoài bảng; bảng vẫn có thể bị chia. |
-| VinUni duy trì học bổng | RecursiveChunker (`recursive`) | 9 | 154,3 | Tách nhỏ bảng; cần giữ tiêu đề cột khi truy xuất. |
-| UET mức học bổng | FixedSizeChunker (`fixed_size`) | 6 | 185,0 | Có nguy cơ mất nhãn `Giỏi` của cột. |
-| UET mức học bổng | SentenceChunker (`by_sentences`) | 3 | 369,0 | Ít chunk, nhiều hàng cùng xuất hiện. |
-| UET mức học bổng | RecursiveChunker (`recursive`) | 7 | 157,4 | Chỉ hữu ích khi chunk giữ hàng và nhãn cột. |
-
-### Chiến lược của từng thành viên
-
-| Thành viên phụ trách trình bày | Cấu hình được gán | Cách chia và lý do thử |
-|---|---|---|
-| Đinh Đức Thái | `heading_320` | Cắt theo tiêu đề Markdown; khi mục dài, lặp lại tiêu đề trên các phần con để giữ ngữ cảnh. |
-| Trần Hồng Sơn | `sentence_2` | Ghép tối đa hai câu; kỳ vọng giữ nguyên phát biểu về điều kiện và mức học bổng. |
-| Hoàng Trung Hiếu | `metadata_enriched(recursive_280)` | Bọc `RecursiveChunker(280)` rồi chèn tiền tố `[title \| institution \| audience]` vào đầu mỗi chunk trước khi embed; thử xem đưa metadata vào chính vector có thay thế được `metadata_filter` không. |
-| Bùi Tùng Dương | `fixed_size(500, overlap=50)` | Cắt 500 ký tự, chồng lấn 50 ký tự làm đường cơ sở đơn giản; overlap giữ khoảng 10% ngữ cảnh ở ranh giới chunk. |
-| Đàm Quang Sơn | `paragraph_360` | Gom các đoạn Markdown liền kề tới 360 ký tự; giữ đoạn và hàng bảng khi vừa giới hạn. |
-
-Hai chiến lược tùy chỉnh nằm trong `bench.py` (`HeadingChunker` của Đinh Đức Thái, `ParagraphChunker` của Đàm Quang Sơn). Ý chính của chiến lược theo tiêu đề:
-
-```python
-sections = re.split(r"(?=^#{1,3} )", text, flags=re.MULTILINE)
-for part in RecursiveChunker(chunk_size=body_size).chunk(body):
-    chunks.append(f"{heading}\n{part}")
-```
-
-Chiến lược thứ ba, `metadata_enriched`, không đổi cách cắt mà bọc một chunker nền rồi chèn tiền tố dựng từ front matter vào đầu mỗi chunk trước khi embed:
-
-```python
-def chunk_with_metadata(self, text, metadata):
-    prefix = f"[{' | '.join(metadata[f] for f in ('title','institution','audience') if metadata.get(f))}]"
-    return [f"{prefix}
-{c}" for c in self.base_chunker.chunk(text)]
-```
-
-Chiến lược theo đoạn tách tại dòng trắng, gom đoạn đến giới hạn rồi dùng `RecursiveChunker` cho đoạn quá dài. Cả hai là cấu hình thử nghiệm, chưa có cơ chế chuyên dụng để bảo toàn cả một bảng Markdown.
+| VinUni học bổng đầu vào | `fixed_size` | 8 | 185,1 | Có thể cắt giữa tên học bổng và mức hỗ trợ. |
+| VinUni học bổng đầu vào | `by_sentences` | 4 | 368,5 | Giữ câu giải thích trọn vẹn; chunk dài hơn. |
+| VinUni học bổng đầu vào | `recursive` | 11 | 133,2 | Dễ truy xuất chi tiết; một số chunk thiếu tên mục. |
+| VinUni duy trì học bổng | `fixed_size` | 7 | 199,9 | Có thể cắt ngang một hàng điều kiện GPA. |
+| VinUni duy trì học bổng | `by_sentences` | 4 | 348,8 | Giữ câu ngoài bảng; bảng vẫn có thể bị chia. |
+| VinUni duy trì học bổng | `recursive` | 9 | 154,3 | Tách nhỏ bảng; cần giữ tiêu đề cột khi truy xuất. |
+| UET mức học bổng | `fixed_size` | 6 | 185,0 | Có nguy cơ mất nhãn `Giỏi` của cột. |
+| UET mức học bổng | `by_sentences` | 3 | 369,0 | Ít chunk, nhiều hàng cùng xuất hiện. |
+| UET mức học bổng | `recursive` | 7 | 157,4 | Chỉ hữu ích khi chunk giữ hàng và nhãn cột. |
 
 ### So Sánh Giữa Các Thành Viên
 
-| Thành viên / cấu hình | Số chunk / độ dài TB | Điểm truy xuất (/10) | Điểm mạnh | Điểm yếu |
-|-----------|----------|----------------------|-----------|----------|
-| Đinh Đức Thái / `heading_320` | 41 / 219,6 | 7 | Q4 lên top-1 nhờ lặp tiêu đề RMIT. | Q5 chỉ ở top-2; Q2 vẫn lỗi. |
-| Trần Hồng Sơn / `sentence_2` | 32 / 237,2 | 7 | Ít chunk hơn, Q1, Q3, Q5 đúng ở top-1. | Q2 không tìm được hàng GPA. |
-| Hoàng Trung Hiếu / `metadata_enriched(recursive_280)` | 45 / 238,0 | 5 (đo lại bằng embedder ngữ nghĩa, chấm mức nội dung) | Tăng từ 1/10 lên 5/10 so với chunker trần cùng tham số, nhờ tiền tố metadata. | Vẫn không đưa được bảng `đ/tháng` của UET vào top-3 ở Q3. |
-| Bùi Tùng Dương / `fixed_size(500, overlap=50)` | 20 / 414,0 | 8 evidence-rank (tự báo cáo) | Bằng chứng ở top-1 cho 4/5 câu. | Q2 không chunk nào trong top-3 chứa đủ điều kiện GPA. |
-| Đàm Quang Sơn / `paragraph_360` | 32 / 237,0 | 6 | Q2 có hàng GPA ở top-3. | Q3/Q4 chỉ ở top-2/3; bộ trả lời chọn sai dòng ở Q5. |
+Chấm ở **mức nội dung**: mốc đặc trưng của gold answer (`chi phí sinh hoạt` · `3,2` · `3.500.000` · `96` · `15 tín chỉ`) có thật sự xuất hiện trong ngữ cảnh top-3 hay không. 2đ nếu mốc nằm ngay trong chunk hạng 1, 1đ nếu ở hạng 2–3, 0đ nếu vắng.
 
-### Phụ lục 2A — Đối chiếu với báo cáo cá nhân (tổng hợp 19/09/2026)
-
-Cả năm báo cáo cá nhân đã nộp được đối chiếu với bảng so sánh ở trên. **Ba thành viên chạy trên ba backend nhúng khác nhau**, nên số liệu trong các báo cáo cá nhân không so sánh trực tiếp với nhau được, và cũng không trùng với bảng nhóm.
-
-| Thành viên | Cấu hình | Backend đã dùng | Điểm tự báo cáo | Điểm bảng nhóm |
-|---|---|---|---|---|
-| Đinh Đức Thái | `heading_320` | MockEmbedder (mục 5 ghi rõ) | 3/5 document hit; tự đánh giá 9/10 — **báo cáo không nêu cấu hình chunker nào** | 7/10 |
-| Trần Hồng Sơn | `sentence_2` | MockEmbedder | **3/10** (tự ghi), đối chiếu TF-IDF 7/10 | 7/10 |
-| Hoàng Trung Hiếu | `metadata_enriched(recursive_280)` | `paraphrase-multilingual-MiniLM-L12-v2` | **5/10** chấm ở mức nội dung | 7/10 |
-| Bùi Tùng Dương | `fixed_size(500, overlap=50)` | `TfidfEmbedder` | 8/10 evidence-rank; báo cáo nêu rõ cấu hình và 20 chunk — nhất quán | 7/10 |
-| Đàm Quang Sơn | `paragraph_360` | `TfidfEmbedder` | 6/10 | 6/10 |
-
-Chỉ `paragraph_360` là khớp giữa hai nguồn. Bốn cấu hình còn lại lệch vì bảng nhóm đo bằng TF-IDF trong khi ba thành viên chạy bằng Mock hoặc bằng embedder ngữ nghĩa.
-
-**Đây là phát hiện về phương pháp, không chỉ là lỗi hành chính.** Cùng một cấu hình `sentence_2` cho 3/10 với MockEmbedder và 7/10 với TF-IDF — chênh hơn gấp đôi, trong khi cách chia nhỏ không đổi. Điều đó nghĩa là **thứ hạng giữa các chiến lược trong bảng so sánh phụ thuộc vào backend nhúng nhiều hơn phụ thuộc vào chính chiến lược**. Kết luận "cấu hình nào thắng" ở mục trên chỉ có hiệu lực trong phạm vi một backend cố định; muốn so sánh chiến lược một cách công bằng thì mọi thành viên phải chạy trên cùng một backend, ghi rõ tên backend cạnh mỗi con số.
-
-**Điểm nhất quán giữa mọi backend.** Có đúng một kết luận không đổi dù đo bằng Mock, TF-IDF hay embedder ngữ nghĩa: **lọc `audience` loại được tài liệu sai đối tượng**. Trần Hồng Sơn và Đàm Quang Sơn đều ghi nhận tài liệu hỗ trợ giảng viên UEH chiếm top-1 ở Q5 khi bỏ filter; Phụ lục 3A đo lại bằng embedder ngữ nghĩa và cho cùng kết quả. Vì kết luận này sống sót qua ba cách mã hóa hoàn toàn khác nhau, nó là phát hiện vững nhất của nhóm — vững hơn bất kỳ so sánh thứ hạng nào giữa các bộ chia.
-
-**Ba việc phải xử lý trước khi nộp:**
-
-1. Thống nhất một backend, chạy lại cả năm cấu hình, cập nhật bảng so sánh — hoặc giữ nguyên số nhưng ghi tên backend cạnh mỗi dòng.
-2. Đinh Đức Thái dùng bộ 5 câu hỏi khác với bộ chính thức ở mục 3; cần chạy lại bằng đúng bộ câu hỏi chung.
-3. **Cấu hình `heading_320` chưa có bằng chứng đã chạy.** Đinh Đức Thái là người nhận cấu hình này, nhưng báo cáo cá nhân của bạn ấy **không nêu cấu hình chunker nào** ở mục 5, và mục 2 (nơi lẽ ra mô tả cách chia) còn để nguyên placeholder. `K4_VARIANT.md` yêu cầu **bắt buộc**: *"Ít nhất một thành viên thử chia nhỏ (chunking) theo tiêu đề/mục (heading/section)"*. Cần Đinh Đức Thái xác nhận và bổ sung bằng chứng, hoặc chạy lại trước khi nộp.
-
-4. **Số chunk của `fixed_size` không khớp giữa hai nguồn.** Báo cáo cá nhân của Bùi Tùng Dương ghi `FixedSizeChunker(chunk_size=500, overlap=50)` → **20 chunk** (con số này đã được kiểm chứng lại trên corpus và đúng). Bảng so sánh nhóm trước đó ghi 43 chunk / 202,6 ký tự — con số của một cấu hình khác (`fixed_220`, tức 220 ký tự, overlap 30). Bảng đã được sửa theo báo cáo cá nhân; nếu nhóm thực sự đo bằng `fixed_220` thì cần thống nhất lại cấu hình nào là chính thức.
-
-5. Đàm Quang Sơn và Bùi Tùng Dương đều ghi rõ máy không có `sentence-transformers` nên phải dùng TF-IDF. Đây là lý do backend phân mảnh, và là lựa chọn hợp lệ theo Phụ lục B của lab — miễn là ghi rõ trong báo cáo, điều cả hai đã làm.
+| Thành viên / cấu hình | Chunk / độ dài TB | Q1 | Q2 | Q3 | Q4 | Q5 | Tổng | Điểm mạnh | Điểm yếu |
+|---|---|---|---|---|---|---|---|---|---|
+| Hoàng Trung Hiếu / `metadata_enriched` | 45 / 238,5 | 2 | 1 | **2** | 1 | **2** | **8/10** | Cấu hình duy nhất đưa được bảng mức UET (Q3) lên hạng 1. | Q2 vẫn không lấy được hàng GPA 3,2 ở hạng 1. |
+| Bùi Tùng Dương / `fixed_size(500,50)` | 20 / 414,0 | 2 | 1 | 1 | **2** | **2** | **8/10** | Chunk dài giữ nhiều bằng chứng; Q4 đúng ngay hạng 1. | Chunk thô nhất, dễ cắt ngang hàng bảng. |
+| Trần Hồng Sơn / `recursive_280` | 45 / 167,9 | 2 | 0 | 1 | 1 | **2** | 6/10 | Định vị đoạn chính xác, Q5 đúng hạng 1. | Chunk ngắn nhất (167,9) nên mật độ bằng chứng thấp; Q2 mất hẳn mốc. |
+| Đinh Đức Thái / `heading_320` | 42 / 214,5 | 2 | 0 | 1 | 1 | 1 | 5/10 | Lặp tiêu đề giữ ngữ cảnh phân cấp cho mảnh con. | Ở Q5 **cả 3 kết quả không lọc đều là tài liệu giảng viên** — xem mục 3. |
+| Đàm Quang Sơn / `paragraph_360` | 32 / 237,0 | 2 | 0 | 0 | 1 | **2** | 5/10 | Giữ nguyên đoạn văn, Q5 đúng hạng 1. | Q3 mất hoàn toàn bảng mức UET khỏi top-3. |
 
 **Chiến lược nào tốt nhất cho chủ đề này? Tại sao?**
-Trong lần chạy này, bốn cấu hình cùng đạt 7/10; chọn `sentence_2` làm cấu hình trình diễn vì tạo 32 chunk, ít hơn các cấu hình 7 điểm còn lại, và trả lời đúng Q1, Q3, Q5 với bằng chứng ở top-1. Với câu hỏi RMIT Q4, `heading_320` tốt hơn do đưa cả hai ngưỡng vào top-1. Cả năm chưa xử lý tốt bảng GPA VinUni, nên kết luận chỉ áp dụng cho bộ 5 câu hỏi và bộ mã hóa hiện tại.
+
+Hai cấu hình đồng hạng nhất ở **8/10** nhưng **thắng bằng hai cơ chế ngược nhau**, và đó mới là kết luận đáng nói.
+
+`fixed_size(500,50)` thắng bằng **kích thước**: 20 chunk, trung bình 414 ký tự — dài gấp đôi mọi cấu hình khác. Chunk dài thì một hàng bảng và câu dẫn giải thích nó thường nằm chung một chunk, nên bằng chứng ít khi bị tách. Cái giá là chunk thô, không tôn trọng cấu trúc, và chỉ hiệu quả khi tài liệu ngắn — corpus này mỗi file chỉ khoảng 1.000 ký tự nên 500 ký tự đã gần nửa tài liệu.
+
+`metadata_enriched` thắng bằng **ngữ cảnh bổ sung**: vẫn 45 chunk ngắn như `recursive_280`, nhưng mỗi chunk mang thêm tên tài liệu, tên trường và đối tượng. So sánh trực tiếp hai dòng này trong bảng cho thấy hiệu ứng sạch nhất của cả buổi lab: **cùng chunker nền, cùng 45 chunk, chỉ khác một dòng tiền tố, điểm đi từ 6/10 lên 8/10**, và Q3 từ 1đ lên 2đ.
+
+Với corpus thật — tài liệu dài hơn nhiều — cách của `fixed_size` sẽ hết tác dụng, còn cách của `metadata_enriched` không phụ thuộc độ dài tài liệu. Nhóm chọn `metadata_enriched` làm cấu hình trình diễn vì lý do đó, không phải vì điểm cao hơn.
 
 ---
 
@@ -152,95 +118,85 @@ Trong lần chạy này, bốn cấu hình cùng đạt 7/10; chọn `sentence_2
 
 ### Câu hỏi đánh giá & Câu trả lời chuẩn (nhóm thống nhất)
 
-> **Đúng 5 câu hỏi**, đa dạng, có thể kiểm chứng; **ít nhất 1 câu** cần lọc metadata mới trả lời tốt. Đây là bộ câu hỏi chung cho mọi thành viên chạy.
+| # | Câu hỏi (Query) | Câu trả lời chuẩn (Gold Answer) | Chunk nào chứa thông tin? | Mốc kiểm |
+|---|-------|-------------------------------|--------------------------|---|
+| 1 | Học bổng President's Excellence của VinUni chi trả những gì? | Toàn bộ học phí **và chi phí sinh hoạt**. | `undergraduate-scholarships`, đoạn về học bổng tài năng | `chi phí sinh hoạt` |
+| 2 | Sinh viên VinUni cần GPA tối thiểu bao nhiêu để duy trì học bổng 100%? | GPA tích lũy của năm xét ít nhất **3,2**; kèm điều kiện kỷ luật, E.X.C.E.L và trao đổi với cố vấn. | `scholarship-renewal-policy`, hàng `Học bổng toàn phần hoặc 100%` | `3,2` |
+| 3 | Ở UET, học bổng loại Giỏi cho khóa QH-2023 đến QH-2025 là bao nhiêu mỗi tháng? | **3.500.000đ/tháng** ở hàng `Chuẩn QH-2023 đến QH-2025`, cột `Giỏi`. | `uet-merit-scholarship-2025-2026`, bảng định mức | `3.500.000` |
+| 4 | Sinh viên RMIT Việt Nam đang học cần bao nhiêu tín chỉ và GPA để xin học bổng thành tích 2026? | Ít nhất **96 tín chỉ** tại RMIT Việt Nam và GPA tích lũy **3,4/4,0**. | `rmit-current-student-scholarship-2026`, đoạn điều kiện xét | `96` |
+| 5 | **Ở UEH, mức hỗ trợ tài chính tối đa cho một học kỳ là bao nhiêu?** ← câu cần `metadata_filter` | Học bổng toàn phần bằng **100% học phí trung bình của 15 tín chỉ**. | `ueh-learning-support-scholarship`, mục `Mức học bổng` | `15 tín chỉ` |
 
-| # | Câu hỏi (Query) | Câu trả lời chuẩn (Gold Answer) | Chunk nào chứa thông tin? |
-|---|-------|-------------------------------|--------------------------|
-| 1 | Học bổng President’s Excellence của VinUni chi trả những gì? | Toàn bộ học phí và chi phí sinh hoạt. | `undergraduate-scholarships`, câu về President’s Excellence. |
-| 2 | Sinh viên VinUni cần GPA tối thiểu bao nhiêu để duy trì học bổng 100%? | GPA tích lũy của năm xét ít nhất **3,2**; còn có điều kiện kỷ luật, E.X.C.E.L và trao đổi với cố vấn. | `scholarship-renewal-policy`, hàng `Học bổng toàn phần hoặc 100%`. |
-| 3 | Ở UET, học bổng loại Giỏi cho khóa QH-2023 đến QH-2025 là bao nhiêu mỗi tháng? | **3.500.000đ/tháng** ở hàng `Chuẩn QH-2023 đến QH-2025`, cột `Giỏi`. | `uet-merit-scholarship-2025-2026`, bảng định mức. |
-| 4 | Sinh viên RMIT Việt Nam đang học cần bao nhiêu tín chỉ và GPA để xin học bổng thành tích 2026? | Ít nhất **96 tín chỉ** tại RMIT Việt Nam và GPA tích lũy **3,4/4,0**. | `rmit-current-student-scholarship-2026`, đoạn điều kiện xét. |
-| 5 | Ở UEH, mức hỗ trợ tài chính tối đa cho một học kỳ là bao nhiêu? | Học bổng toàn phần cho sinh viên bằng **100% học phí trung bình của 15 tín chỉ**. | `ueh-learning-support-scholarship`, mục `Mức học bổng`; lọc `institution=ueh`, `audience=student`. |
+Câu 5 cố ý **không nêu người hỏi là ai**, trong khi corpus có hai tài liệu UEH cùng nói về "mức hỗ trợ tài chính" nhưng khác đối tượng và khác hẳn đáp án: `ueh-learning-support-scholarship` (sinh viên — 100% học phí 15 tín chỉ) và `ueh-faculty-support` (giảng viên — 500/300/150 triệu đồng, cộng 20 triệu đồng mỗi tháng).
 
 ### Tổng hợp chất lượng truy xuất của nhóm
 
-> Cách chấm (theo `docs/SCORING.md`): **2 điểm/câu** — top-3 chứa chunk liên quan + agent trả lời đúng (2), có liên quan nhưng thiếu/không ở top-1 (1), không có trong top-3 (0).
-
 | # | Câu hỏi | Chiến lược tốt nhất cho câu này | Có chunk liên quan trong top-3? | Ghi chú |
 |---|---------|-------------------------------|-------------------------------|---------|
-| 1 | President’s Excellence | Cả năm cấu hình | Có, top-1 | Agent trích đúng học phí và sinh hoạt. |
-| 2 | GPA duy trì 100% | `paragraph_360` | Có, top-3 | Chỉ cấu hình này đưa hàng `3,2` vào top-3; agent vẫn chọn sai hàng. Các cấu hình khác: 0 điểm. |
-| 3 | UET loại Giỏi | Bốn cấu hình 7 điểm (đồng hạng) | Có, top-1 | Dòng trả lời gồm đủ hàng bảng, nhưng cần đọc theo thứ tự cột `Xuất sắc / Giỏi / Khá`. |
-| 4 | RMIT tín chỉ và GPA | `heading_320` | Có, top-1 | Lặp tiêu đề giúp chunk chứa cả `96 tín chỉ` và `3,4/4,0` lên đầu. |
-| 5 | UEH mức toàn phần | `fixed_220`, `sentence_2`, `recursive_280` | Có, top-1 sau lọc | Bỏ `audience` thì tài liệu UEH dành cho giảng viên đứng top-1 ở cả năm cấu hình. |
+| 1 | President's Excellence | Cả năm cấu hình (2đ) | Có, hạng 1 | Câu duy nhất mọi cấu hình đều đạt trọn điểm. |
+| 2 | GPA duy trì 100% | `metadata_enriched`, `fixed_size` (1đ) | Chỉ 2/5 cấu hình có mốc `3,2` trong top-3 | **Failure case của nhóm** — ba cấu hình còn lại mất hẳn hàng bảng. |
+| 3 | UET loại Giỏi | `metadata_enriched` (2đ) | 4/5 có, riêng `paragraph_360` mất hẳn | Chỉ tiền tố metadata mới đưa được hàng bảng lên hạng 1. |
+| 4 | RMIT tín chỉ và GPA | `fixed_size` (2đ) | Cả năm đều có | Chunk dài giữ được cả `96 tín chỉ` và `3,4/4,0` cùng chỗ. |
+| 5 | UEH mức toàn phần | `recursive_280`, `metadata_enriched`, `fixed_size`, `paragraph_360` (2đ) | Có, hạng 1 **sau khi lọc** | Không lọc thì tài liệu giảng viên chiếm đầu bảng ở **cả năm** cấu hình. |
+
+**Phát hiện quan trọng nhất về cách chấm: `doc_id` cho 10/10 với mọi cấu hình.**
+
+Nếu chấm theo "tài liệu gold có nằm trong top-3 không", **cả năm cấu hình đều đạt 5/5 câu**, tức 10/10 điểm tuyệt đối, và bảng so sánh sẽ hoàn toàn phẳng — không phân biệt được chiến lược nào tốt hơn. Chấm ở mức nội dung thì điểm trải ra 5, 5, 6, 8, 8. Chênh lệch giữa hai cách chấm là **từ 2 đến 5 điểm tuỳ cấu hình**, và cách chấm ngây thơ xoá sạch mọi khác biệt mà cả buổi lab đang cố đo.
+
+Nguyên nhân: các section trong cùng một tài liệu nói về cùng chủ đề nên điểm cosine gần bằng nhau, việc section nào lọt top-3 gần như ngẫu nhiên. Đúng tài liệu là điều kiện cần, không phải điều kiện đủ.
+
+### A/B bắt buộc — câu 5, trên cả năm chiến lược
+
+`python bench.py` và `python bench.py --no-filter`, `top_k=3`:
+
+| Cấu hình | Sai đối tượng — KHÔNG lọc | Sai đối tượng — CÓ `audience=student` |
+|---|---|---|
+| `heading_320` | **3/3** | 0/3 |
+| `recursive_280` | **2/3** | 0/3 |
+| `metadata_enriched` | **2/3** | 0/3 |
+| `paragraph_360` | **2/3** | 0/3 |
+| `fixed_size(500,50)` | **1/3** | 0/3 |
+
+Chi tiết nhánh không lọc:
+
+- `heading_320`: `ueh-faculty-support` (+0,7686) — `ueh-faculty-support` (+0,7412) — `ueh-faculty-support` (+0,7105). **Cả ba vị trí đều là tài liệu giảng viên.**
+- `recursive_280`: `ueh-faculty-support` (+0,7428) — `ueh-faculty-support` (+0,6840) — `ueh-learning-support-scholarship` (+0,6432)
+- `metadata_enriched`: `ueh-faculty-support` (+0,7228) — `ueh-faculty-support` (+0,7158) — `ueh-learning-support-scholarship` (+0,7112)
+- `paragraph_360`: `ueh-faculty-support` (+0,7428) — `ueh-learning-support-scholarship` (+0,7203) — `ueh-faculty-support` (+0,6958)
+- `fixed_size(500,50)`: `ueh-faculty-support` (+0,7603) — `ueh-learning-support-scholarship` (+0,7057) — `uet-merit-scholarship-2025-2026` (+0,6604)
 
 **Lọc bằng metadata có giúp ích không? Ở câu hỏi nào?**
-Ở Q5, giữ `institution=ueh` trong cả hai nhánh A/B: khi chưa lọc `audience`, chunk giảng viên UEH đứng top-1 ở cả năm cấu hình; thêm `audience=student` thì chỉ còn văn bản học bổng sinh viên UEH. Ba cấu hình đạt 2 điểm ở Q5; `heading_320` đưa bằng chứng lên top-2, còn `paragraph_360` có bằng chứng top-1 nhưng bộ trả lời chọn dòng khác. Điều này cho thấy lọc đúng tài liệu chưa bảo đảm câu trả lời cuối đúng.
 
-**Cách chạy và giới hạn phép đo:** `python bench.py` tạo [`ket_qua_benchmark.txt`](../ket_qua_benchmark.txt). Script dùng TF-IDF từ thư viện chuẩn, một từ vựng cố định dựng trên 7 văn bản, `EmbeddingStore` và `KnowledgeBaseAgent` với bộ trả lời trích một dòng; không dùng API embedding hoặc LLM. Chấm 2 khi chunk đúng đứng top-1 và câu trả lời chứa đủ dấu mốc, 1 khi chunk đúng ở top-3 nhưng trả lời thiếu hoặc không đứng đầu, 0 khi không có chunk đúng trong top-3. Dấu mốc là phép kiểm tự động, không thay thế việc đọc câu trả lời: Q3 trả về cả hàng bảng, người đọc phải xác định cột `Giỏi`; ID chunk có thể thay đổi khi sửa bộ chia hoặc văn bản. Điểm trong bảng là kết quả một lần chạy trên bộ dữ liệu cố định, không phải kết quả của dịch vụ embedding ngữ nghĩa.
+Có, ở câu 5, và hiệu ứng **không phụ thuộc chiến lược chia nhỏ**: cả năm cấu hình đều đi từ có tài liệu sai đối tượng trong top-3 xuống còn 0/3. Ở **cả năm**, tài liệu giảng viên chiếm **hạng 1** khi không lọc — nghĩa là agent sẽ trả lời "500 triệu đồng cho Giáo sư" cho một sinh viên hỏi về học bổng.
 
-### Phụ lục 3A — Kiểm chứng bổ sung bằng embedder ngữ nghĩa (Hoàng Trung Hiếu)
+Điểm đáng chú ý: điểm cosine của tài liệu giảng viên (0,72–0,77) **cao hơn** tài liệu đúng (0,64–0,72) ở mọi cấu hình. Filter không làm kết quả "giống chủ đề hơn" — nó loại bỏ **sai đối tượng**, thứ mà similarity một mình không phân biệt được, vì hai tài liệu thật sự nói về cùng chủ đề "hỗ trợ tài chính của UEH".
 
-Bảng điểm ở trên đo bằng bộ mã hóa TF-IDF. Để kiểm tra kết luận về `audience` có phụ thuộc vào cách mã hóa hay không, phần này chạy lại nhánh A/B bằng embedder ngữ nghĩa thật: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (`EMBEDDING_PROVIDER=local`), cùng 7 văn bản, `FixedSizeChunker(chunk_size=500, overlap=50)` → 20 chunk, `top_k=3`.
+**Kết quả âm: đưa `audience` vào chính text KHÔNG thay thế được filter.**
 
-Câu dùng để đo là một biến thể **không nêu rõ người hỏi là ai**: *"Trường hỗ trợ bao nhiêu tiền mỗi tháng?"* — trùng từ vựng "hỗ trợ / tiền / mỗi tháng" với cả tài liệu sinh viên (UET, `đ/tháng`) lẫn tài liệu giảng viên (UEH, `20 triệu đồng/tháng`).
+Cấu hình `metadata_enriched` chèn tiền tố `[title | institution | audience]` vào đầu mỗi chunk trước khi embed, tức thông tin đối tượng đã nằm ngay trong chuỗi được mã hoá. Giả thuyết là retrieval sẽ tự phân biệt được và filter thành thừa. Đo ra vẫn **2/3 sai đối tượng** khi không lọc — không tốt hơn `recursive_280` trần, và tệ hơn `fixed_size`.
 
-| Hạng | KHÔNG lọc | | CÓ `audience=student` | |
+Lý do: tiền tố của tài liệu giảng viên là `[Hỗ trợ tài chính thu hút và phát triển giảng viên UEH | ueh | faculty]`, chứa cụm "hỗ trợ tài chính" **trùng từ vựng với câu hỏi**. Nó vừa thêm tín hiệu đúng (đây là tài liệu UEH) vừa thêm nhiễu (đây là tài liệu về hỗ trợ tài chính), và token `faculty` đơn lẻ quá yếu để cân lại.
+
+Cùng tiền tố đó lại **rất hiệu quả cho việc định vị đoạn**: 6/10 lên 8/10 so với chunker trần cùng tham số. Kết luận: chèn metadata vào text và lọc metadata bằng filter giải **hai bài toán khác nhau** — tiền tố tìm đúng *đoạn*, filter loại đúng *đối tượng* — và không thay thế được nhau.
+
+### Phụ lục 2A — Đối chiếu với năm báo cáo cá nhân
+
+Cả năm báo cáo cá nhân đã nộp. **Ba backend nhúng khác nhau được dùng**, nên điểm trong báo cáo cá nhân không so sánh trực tiếp với nhau, và cũng không trùng bảng đo đồng nhất ở mục 2.
+
+| Thành viên | Cấu hình | Backend trong báo cáo cá nhân | Điểm tự báo cáo | Đo lại đồng nhất (mục 2) |
 |---|---|---|---|---|
-| | `doc_id` (audience) | score | `doc_id` (audience) | score |
-| 1 | `ueh-faculty-support` (**faculty**) | +0,5919 | `undergraduate-scholarships` (student) | +0,5825 |
-| 2 | `undergraduate-scholarships` (student) | +0,5825 | `uet-merit-scholarship-2025-2026` (student) ← **gold** | +0,5641 |
-| 3 | `ueh-faculty-support` (**faculty**) | +0,5760 | `undergraduate-scholarships` (student) | +0,5500 |
-| | **Sai đối tượng: 2/3** | | **Sai đối tượng: 0/3** | |
+| Đinh Đức Thái | `heading_320` | MockEmbedder | 3/5 document hit | 5/10 |
+| Trần Hồng Sơn | `recursive_280` | MockEmbedder | 2/10 (45 chunk) | 6/10 |
+| Hoàng Trung Hiếu | `metadata_enriched` | `paraphrase-multilingual-MiniLM-L12-v2` | 8/10 | 8/10 |
+| Bùi Tùng Dương | `fixed_size(500,50)` | TF-IDF chuẩn hoá | 8/10 evidence-rank | 8/10 |
+| Đàm Quang Sơn | `paragraph_360` | `TfidfEmbedder` | 6/10 | 5/10 |
 
-**Chạy trên cả ba chiến lược chia nhỏ.** Lab yêu cầu đo A/B trên cả ba chiến lược, không chỉ một. Cùng câu hỏi, cùng embedder, cùng `top_k=3`:
+**Đây là phát hiện về phương pháp, không chỉ là lỗi hành chính.** Cùng cấu hình `recursive_280` cho **2/10 với MockEmbedder** và **6/10 với embedder ngữ nghĩa** — chênh gấp ba, trong khi cách chia nhỏ không đổi một tham số nào. Nghĩa là thứ hạng giữa các chiến lược phụ thuộc vào backend nhúng nhiều hơn phụ thuộc vào chính chiến lược. Một bảng so sánh không ghi rõ backend thì gần như vô nghĩa — đó là lý do bảng ở mục 2 nêu điều kiện đo ngay trước khi nêu số.
 
-| Chiến lược | Số chunk | Sai đối tượng — KHÔNG lọc | Sai đối tượng — CÓ lọc | Hạng của chunk gold khi KHÔNG lọc |
-|---|---|---|---|---|
-| `FixedSizeChunker(500, overlap=50)` | 20 | **2/3** | 0/3 | ngoài top-3 |
-| `SentenceChunker(max=3)` | 23 | **1/3** | 0/3 | **hạng 1** |
-| `RecursiveChunker(500)` | 23 | **2/3** | 0/3 | ngoài top-3 |
-| `RecursiveChunker(280)` | 45 | **2/3** | 0/3 | ngoài top-3 |
-| `metadata_enriched(recursive_280)` | 45 | **2/3** | 0/3 | ngoài top-3 |
+Đàm Quang Sơn và Bùi Tùng Dương đều **ghi rõ** máy không có `sentence-transformers` nên phải dùng TF-IDF; đây là lựa chọn hợp lệ theo Phụ lục B của lab, miễn là nêu rõ trong báo cáo, điều cả hai đã làm.
 
-Chi tiết nhánh không lọc của hai chiến lược còn lại:
+**Điểm nhất quán qua mọi backend.** Có đúng một kết luận không đổi dù đo bằng Mock, TF-IDF hay embedder ngữ nghĩa: **lọc `audience` loại được tài liệu sai đối tượng**. Trần Hồng Sơn, Bùi Tùng Dương và Đàm Quang Sơn đều độc lập ghi nhận tài liệu giảng viên UEH chiếm hạng 1 ở câu 5 khi bỏ filter. Vì kết luận này sống sót qua ba cách mã hoá hoàn toàn khác nhau **và** năm cách chia nhỏ khác nhau, nó là phát hiện vững nhất của nhóm.
 
-- `SentenceChunker`: 1. `uet-merit-scholarship-2025-2026` (student, +0,5987) — 2. `ueh-faculty-support` (**faculty**, +0,5895) — 3. `undergraduate-scholarships` (student, +0,5547)
-- `RecursiveChunker(500)`: 1. `ueh-faculty-support` (**faculty**, +0,5895) — 2. `undergraduate-scholarships` (student, +0,5570) — 3. `ueh-faculty-support` (**faculty**, +0,5269)
-- `RecursiveChunker(280)`: 1. `ueh-faculty-support` (**faculty**, +0,6022) — 2. `ueh-faculty-support` (**faculty**, +0,5597) — 3. `undergraduate-scholarships` (student, +0,5570)
-- `metadata_enriched(recursive_280)` (cấu hình của Hoàng Trung Hiếu): 1. `ueh-faculty-support` (**faculty**, +0,6133) — 2. `ueh-faculty-support` (**faculty**, +0,5712) — 3. `ueh-learning-support-scholarship` (student, +0,5442)
-
-**Kết quả âm đáng ghi nhận: đưa `audience` vào chính text KHÔNG thay thế được filter.** Cấu hình `metadata_enriched` chèn tiền tố `[title | institution | audience]` vào đầu mỗi chunk trước khi embed, tức thông tin đối tượng đã nằm ngay trong chuỗi được mã hoá. Giả thuyết là retrieval sẽ tự phân biệt được và filter thành thừa. Đo ra vẫn **2/3 sai đối tượng** khi không lọc — y hệt chunker trần. Lý do: tiền tố của tài liệu giảng viên là `[Hỗ trợ tài chính thu hút và phát triển giảng viên UEH | ueh | faculty]`, chứa cụm "hỗ trợ tài chính" **trùng từ vựng với câu hỏi**, nên nó vừa thêm tín hiệu đúng vừa thêm nhiễu; token `faculty` đơn lẻ quá yếu để cân lại.
-
-Cùng tiền tố đó lại **rất hiệu quả cho việc định vị đoạn**: cùng chunker nền, cùng 45 chunk, cùng embedder, điểm mức nội dung tăng từ **1/10 lên 5/10**. Kết luận cho cả nhóm: chèn metadata vào text và lọc metadata bằng filter giải **hai bài toán khác nhau** — tiền tố tìm đúng *đoạn*, filter loại đúng *đối tượng* — và không thay thế được nhau.
-
-**Hai kết luận rút ra.**
-
-Thứ nhất, hiệu ứng của filter **không phụ thuộc chiến lược chia nhỏ**: cả ba đều đi từ có tài liệu sai đối tượng trong top-3 xuống còn 0/3. Cộng với việc kết luận này cũng giữ nguyên qua ba backend nhúng khác nhau (xem Phụ lục 2A), đây là phát hiện vững nhất của nhóm.
-
-Thứ hai, **mức độ cần filter thì phụ thuộc chiến lược**. `SentenceChunker` là cấu hình duy nhất đưa chunk gold lên hạng 1 ngay cả khi không lọc, và cũng là cấu hình có ít tài liệu sai đối tượng nhất (1/3 thay vì 2/3). Lý do hợp lý: gom 3 câu giữ được hàng bảng UET cùng với câu dẫn nói rõ "học bổng cho sinh viên", nên chunk tự mang theo tín hiệu về đối tượng. Hai cấu hình kia cắt theo độ dài ký tự nên hàng bảng bị tách khỏi câu dẫn, chunk chỉ còn con số và đơn vị "đ/tháng" — trùng khớp với tài liệu giảng viên vốn cũng có "triệu đồng/tháng".
-
-Nói cách khác, chunking tốt làm **giảm** mức độ phải dựa vào metadata filter, nhưng không thay thế được nó: ngay ở `SentenceChunker`, tài liệu giảng viên vẫn đứng hạng 2 khi không lọc.
-
-Kết luận khớp với nhánh TF-IDF: tài liệu giảng viên UEH chiếm top-1 khi không lọc, và biến mất hoàn toàn khi lọc. Điều đáng chú ý là **điểm số gần như không đổi** giữa hai lần chạy (0,58 và 0,58) — filter không cải thiện *độ giống chủ đề*, nó loại bỏ *sai đối tượng*, thứ mà similarity một mình không phân biệt được. Vì kết luận giữ nguyên trên hai cách mã hóa hoàn toàn khác nhau, nhận định về `audience` ở mục 3 không phải là hiện tượng riêng của TF-IDF.
-
-**Ghi chú phương pháp — một câu hỏi có thể "trông như" cần filter mà không phải.** Phiên bản đầu của câu đo là *"Mức hỗ trợ tài chính là bao nhiêu và điều kiện nhận thế nào?"*, và cho kết quả **giống hệt nhau ở cả hai nhánh**: tài liệu `faculty` xếp hạng 4, nằm ngoài `top_k=3`, nên filter không loại được gì. Đúng như lab cảnh báo, kết quả A/B trùng nhau nghĩa là câu hỏi chưa thực sự cần filter. Nhóm sửa câu hỏi cho trùng từ vựng với cả hai đối tượng thì hiệu ứng mới đo được. Đây là lý do bảng A/B phải ghi cả hai nhánh chứ không chỉ ghi nhánh có lọc.
-
-### Phụ lục 3B — Vì sao câu hỏi chứa con số hay hỏng (Hoàng Trung Hiếu)
-
-Đo `compute_similarity()` trên 5 cặp câu bằng cùng embedder ngữ nghĩa:
-
-| Cặp câu | Quan hệ | Score |
-|---|---|---|
-| "Học bổng chi trả 50% học phí toàn chương trình." / "The scholarship covers 50% of the total program tuition fee." | bản dịch | **+0,9570** |
-| "Học bổng toàn phần yêu cầu GPA ít nhất **3,2**." / "Hỗ trợ theo nhu cầu yêu cầu GPA ít nhất **2,0**." | **mâu thuẫn về số** | **+0,7338** |
-| "GPA tích lũy tối thiểu 3,4/4,0 để được xét học bổng." / "Điều kiện nộp hồ sơ là điểm trung bình tích lũy từ 3,4 trên thang 4,0 trở lên." | cùng nghĩa, khác từ | +0,5955 |
-| "Trường hỗ trợ sinh viên 3.400.000đ mỗi tháng." / "Trường hỗ trợ giảng viên thêm 20 triệu đồng mỗi tháng." | sai đối tượng | +0,5413 |
-| "Hạn nộp hồ sơ học bổng là 17:00 ngày 27/07/2026." / "Thư viện mở cửa từ 8h00 đến 19h00." | không liên quan | +0,2918 |
-
-Hai câu **nói ngược nhau về con số** (0,73) giống nhau hơn hai câu **diễn đạt cùng một ý** (0,60). Embedding mã hóa chủ đề và khuôn câu, không mã hóa giá trị số: hai câu cùng khuôn "loại hỗ trợ X yêu cầu GPA ít nhất Y" gần như trùng nhau trong không gian vector dù Y khác nhau.
-
-Đây là lời giải thích ở mức cơ chế cho thất bại của **Q2** trong bảng mục 3. Bảng duy trì học bổng VinUni có bốn hàng cùng khuôn "mức học bổng → ngưỡng GPA" (3,2 / 2,5 / 2,0 / tự động gia hạn). Với retrieval, bốn hàng này gần như không phân biệt được, nên việc hàng nào lọt top-3 phụ thuộc vào cách bộ chia cắt bảng chứ không phụ thuộc vào câu hỏi — điều này khớp với quan sát rằng chỉ `paragraph_360` tìm được hàng `3,2`, và ngay cả khi tìm được thì bộ trả lời vẫn chọn sai hàng. Sửa bằng cách đổi bộ mã hóa sẽ không hiệu quả; phải sửa ở tầng chia nhỏ, theo đúng đề xuất "bộ chia riêng cho bảng Markdown" ở mục 4.
+**Còn một điểm cần thống nhất trước khi nộp:** báo cáo cá nhân của Đinh Đức Thái dùng bộ 5 câu hỏi khác với bộ chính thức ở mục 3 (hỏi về mức Xuất sắc UET, gói học bổng VinUni, quy trình xếp hạng RMIT). Lab yêu cầu cả nhóm chạy chung một bộ câu hỏi, nên phần này cần chạy lại.
 
 ---
 
@@ -248,33 +204,35 @@ Hai câu **nói ngược nhau về con số** (0,73) giống nhau hơn hai câu 
 
 **Những phân tích (insights) hay nhất nhóm sẽ trình bày:**
 
-- Demo `python scripts/check_corpus.py`, sau đó `python bench.py`; mở Q5 trong log để thấy tài liệu giảng viên top-1 khi chỉ lọc `ueh` và tài liệu sinh viên khi thêm `audience=student`.
-- Mở Q2 trong văn bản nguồn và log: hàng GPA **3,2** có trong dữ liệu nhưng bốn chiến lược không truy xuất được chunk chứa hàng đó ở top-3; cấu hình theo đoạn tìm được ở top-3 nhưng bộ trả lời vẫn chọn sai.
-- Đối chiếu Q4: lặp tiêu đề trong `heading_320` đưa điều kiện RMIT lên top-1, các cách chia khác đưa lên top-2 hoặc top-3.
-- Phụ lục 3B: hai câu mâu thuẫn về con số lại giống nhau hơn hai câu cùng nghĩa — giải thích vì sao Q2 hỏng ở tầng cơ chế, và vì sao đổi embedder không cứu được.
+- Demo `python scripts/check_corpus.py`, rồi `python bench.py` và `python bench.py --no-filter`; mở câu 5 trong log để thấy tài liệu giảng viên chiếm hạng 1 khi bỏ lọc và biến mất khi thêm `audience=student`.
+- Đối chiếu `recursive_280` với `metadata_enriched`: cùng chunker nền, cùng 45 chunk, chỉ khác một dòng tiền tố, điểm đi từ 6/10 lên 8/10.
+- Chấm bằng `doc_id` cho **10/10 với cả năm cấu hình**; chấm ở mức nội dung mới trải ra 5–8/10. Cách chấm ngây thơ xoá sạch mọi khác biệt giữa các chiến lược.
+- Câu 2 hỏng ở 3/5 cấu hình: hàng GPA `3,2` có trong corpus nhưng không lọt top-3, vì bảng Markdown bị mọi bộ chia cắt ngang.
 
 **Bài học rút ra khi so sánh trong nhóm:**
-Cùng 7 tài liệu, vị trí bằng chứng thay đổi vì các bộ chia giữ tiêu đề, câu và hàng bảng theo cách khác nhau. Chia nhỏ giúp tìm một điều kiện ngắn, nhưng có thể cắt mất tên cột hoặc tên chương trình; vì vậy phải xem chính chunk và câu trả lời, không chỉ nhìn `doc_id` hay điểm cosine. Metadata `institution` và `audience` giải quyết nhầm đối tượng ở Q5 trước khi xếp hạng.
+Cùng 7 tài liệu, vị trí bằng chứng thay đổi vì các bộ chia giữ tiêu đề, câu và hàng bảng theo cách khác nhau. Chia nhỏ giúp tìm một điều kiện ngắn nhưng làm loãng mật độ bằng chứng trong mỗi chunk; chia to giữ được bằng chứng nhưng thô và chỉ hiệu quả với tài liệu ngắn. Vì vậy phải xem chính chunk và câu trả lời, không chỉ nhìn `doc_id` hay điểm cosine. Metadata `audience` giải quyết nhầm đối tượng ở câu 5 **trước** khi xếp hạng, ở tầng mà similarity không với tới được.
 
-**Failure case chi tiết — Q2, bảng GPA VinUni**
+**Failure case chi tiết — Câu 2, bảng GPA VinUni**
 
-- *Câu hỏi nào hỏng:* Q2 — "Sinh viên VinUni cần GPA tối thiểu bao nhiêu để duy trì học bổng 100%?". Đáp án đúng (`3,2`) nằm trong corpus nhưng 4/5 cấu hình không đưa được chunk chứa nó vào top-3; cấu hình thứ năm đưa được nhưng agent vẫn trả lời sai hàng.
-- *Vì sao:* hai nguyên nhân chồng lên nhau. (1) Bảng Markdown bị mọi bộ chia cắt ngang, nên quan hệ giữa nhãn hàng `Học bổng toàn phần hoặc 100%` và giá trị `3,2` bị đứt — chunk giữ được con số thì mất nhãn, chunk giữ nhãn thì mất con số. (2) Ngay cả khi chunk còn nguyên, bốn hàng của bảng có khuôn câu gần như trùng nhau nên similarity không phân biệt được hàng nào ứng với mức học bổng nào (đo cụ thể ở Phụ lục 3B: hai ngưỡng GPA khác nhau đạt 0,7338).
-- *Đề xuất sửa:* bộ chia riêng cho bảng Markdown — mỗi hàng thành một chunk độc lập, lặp lại dòng tiêu đề cột và tên bảng vào đầu mỗi chunk, để chunk tự mang đủ ngữ cảnh `mức học bổng → ngưỡng GPA`. Đây là cùng một cơ chế đã giúp `heading_320` thắng ở Q4 (lặp tiêu đề), chỉ áp dụng xuống mức hàng bảng.
+- *Câu hỏi nào hỏng:* Câu 2 — "Sinh viên VinUni cần GPA tối thiểu bao nhiêu để duy trì học bổng 100%?". Đáp án đúng (`3,2`) nằm trong corpus nhưng **3/5 cấu hình** (`heading_320`, `recursive_280`, `paragraph_360`) không đưa được chunk chứa nó vào top-3; hai cấu hình còn lại chỉ đạt 1đ, tức mốc có trong top-3 nhưng không ở hạng 1.
+- *Vì sao — hai nguyên nhân chồng lên nhau:*
+  1. **Bảng Markdown bị mọi bộ chia cắt ngang.** Quan hệ giữa nhãn hàng `Học bổng toàn phần hoặc 100%` và giá trị `3,2` bị đứt — chunk giữ được con số thì mất nhãn, chunk giữ nhãn thì mất con số.
+  2. **Bốn hàng của bảng có khuôn câu gần như trùng nhau** ("mức học bổng X yêu cầu GPA ít nhất Y" với Y = 3,2 / 2,5 / 2,0). Đo trên embedder ngữ nghĩa, hai câu chỉ khác con số đạt similarity **0,7338** — cao hơn hẳn hai câu diễn đạt cùng một ý (**0,5955**). Embedding mã hoá chủ đề và khuôn câu, không mã hoá giá trị số, nên retrieval không phân biệt được hàng nào ứng với mức học bổng nào.
+- *Đề xuất sửa:* bộ chia riêng cho bảng Markdown — mỗi hàng thành một chunk độc lập, lặp lại dòng tiêu đề cột và tên bảng vào đầu mỗi chunk, để chunk tự mang đủ ngữ cảnh `100% → 3,2`. Đây là cùng một cơ chế đã giúp `metadata_enriched` thắng ở câu 3 (bơm ngữ cảnh vào chunk), chỉ áp dụng xuống mức hàng bảng. **Đổi embedder sẽ không cứu được câu này** — nguyên nhân nằm ở tầng chia nhỏ, không phải tầng mã hoá.
 
 **Nếu làm lại, nhóm sẽ thay đổi gì trong chiến lược dữ liệu (data strategy)?**
-Tạo bộ chia riêng cho bảng Markdown: lặp tiêu đề cột và giữ nguyên từng hàng cùng tên học bổng để Q2 không mất quan hệ `100% → 3,2`. Ghi thêm mã hàng/mục và ngày hiệu lực vào metadata, rồi đánh giá bằng tập câu hỏi lớn hơn và một bộ trả lời có thể kiểm tra được liên kết giữa cột và giá trị. Cần đối chiếu lại các bản tóm lược với trang nguồn trước khi dùng cho tư vấn học bổng thực tế.
+Ba việc, theo thứ tự ưu tiên. (1) Viết bộ chia nhận diện bảng Markdown như trên — đây là nguyên nhân của failure case duy nhất còn lại. (2) Thống nhất **một** backend nhúng cho cả nhóm ngay từ đầu, và ghi tên backend cạnh mọi con số; việc năm người dùng ba backend làm mất gần hết giá trị so sánh của lần chạy đầu. (3) Khai báo mốc kiểm nội dung cho mỗi câu hỏi **trước** khi chạy, thay vì chấm bằng `doc_id` — nếu không, mọi cấu hình đều 10/10 và bảng so sánh không nói lên điều gì. Ngoài ra cần đối chiếu lại các bản tóm lược với trang nguồn trước khi dùng cho tư vấn học bổng thực tế.
 
 ---
 
 ## Tự Đánh Giá (Phần Nhóm)
 
-| Tiêu chí | Điểm tự đánh giá |
-|----------|-------------------|
-| Lựa chọn tài liệu (Document Set Quality) | 9 / 10 |
-| Thiết kế chiến lược (Strategy Design) | 13 / 15 |
-| Chất lượng truy xuất (Retrieval Quality) | 7 / 10 |
-| Thuyết trình (Demo) | 0 / 5 — chưa có bằng chứng đã trình bày trực tiếp |
-| **Tổng phần nhóm, tạm tính trước khi thuyết trình** | **29 / 40** |
+| Tiêu chí | Điểm tự đánh giá | Căn cứ |
+|----------|-------------------|--------|
+| Lựa chọn tài liệu (Document Set Quality) | 9 / 10 | 7 tài liệu từ 4 nguồn chính thức, metadata đủ và kiểm tự động được bằng `scripts/check_corpus.py`; tài liệu `faculty` được giữ có chủ ý để filter có việc thật. Trừ 1 vì corpus lệch 6 student / 1 faculty, chỉ có đúng một tài liệu để filter loại ra. |
+| Thiết kế chiến lược (Strategy Design) | 14 / 15 | Năm chiến lược khác nhau, đo lại đồng nhất trên một backend; một so sánh có kiểm soát (tiền tố metadata: 6/10 → 8/10 với cùng chunker nền); một kết quả âm được nêu giả thuyết rồi bác bỏ bằng số liệu. Trừ 1 vì hai chunker phải dựng lại thay vì dùng mã gốc. |
+| Chất lượng truy xuất (Retrieval Quality) | 8 / 10 | Cấu hình tốt nhất đạt 8/10 khi chấm ở mức nội dung. A/B chạy đủ trên cả năm chiến lược. Câu 2 vẫn hỏng ở 3/5 cấu hình. |
+| Thuyết trình (Demo) | — / 5 | Cập nhật sau buổi demo. |
+| **Tổng phần nhóm, trước thuyết trình** | **31 / 35** | |
 
-Điểm tự đánh giá dựa trên corpus và benchmark có thể tái chạy; điểm thuyết trình sẽ cập nhật sau buổi demo. Điểm chất lượng lấy cấu hình tốt nhất, không cộng điểm của nhiều cấu hình.
+Điểm chất lượng truy xuất lấy cấu hình tốt nhất, không cộng điểm của nhiều cấu hình. Mọi số liệu trong báo cáo này tái chạy được bằng `python bench.py` trên `data/hoc-bong/` với `EMBEDDING_PROVIDER=local`.

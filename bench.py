@@ -29,6 +29,78 @@ from src import (
     SentenceChunker,
 )
 
+class HeadingChunker:
+    """
+    Cắt theo tiêu đề Markdown ATX; section dài thì hạ xuống RecursiveChunker và
+    GẮN LẠI dòng tiêu đề vào đầu mỗi mảnh con.
+
+    Dựng lại theo mô tả trong báo cáo cá nhân của Đinh Đức Thái để bảng so sánh
+    của nhóm có số liệu kiểm chứng được. Không phải mã gốc của bạn ấy.
+    """
+
+    HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$", re.M)
+
+    def __init__(self, chunk_size: int = 320) -> None:
+        self.chunk_size = chunk_size
+        self.inner = RecursiveChunker(chunk_size=chunk_size)
+
+    def chunk(self, text: str) -> list[str]:
+        if not text.strip():
+            return []
+        cuts = [m.start() for m in self.HEADING_RE.finditer(text)]
+        bounds = sorted(set([0] + cuts + [len(text)]))
+        out: list[str] = []
+        for a, b in zip(bounds, bounds[1:]):
+            section = text[a:b].strip()
+            if not section:
+                continue
+            if len(section) <= self.chunk_size:
+                out.append(section)
+                continue
+            lines = section.split("\n", 1)
+            heading = lines[0] if self.HEADING_RE.match(lines[0] + "\n") else ""
+            body = lines[1] if len(lines) > 1 else section
+            room = max(40, self.chunk_size - len(heading) - 1)
+            for part in RecursiveChunker(chunk_size=room).chunk(body.strip()):
+                out.append(f"{heading}\n{part}" if heading else part)
+        return out
+
+
+class ParagraphChunker:
+    """
+    Tách tại dòng trắng, gom các đoạn liền kề tới giới hạn, đoạn quá dài thì hạ
+    xuống RecursiveChunker.
+
+    Dựng lại theo mô tả trong báo cáo cá nhân của Đàm Quang Sơn để bảng so sánh
+    của nhóm có số liệu kiểm chứng được. Không phải mã gốc của bạn ấy.
+    """
+
+    def __init__(self, chunk_size: int = 360) -> None:
+        self.chunk_size = chunk_size
+
+    def chunk(self, text: str) -> list[str]:
+        if not text.strip():
+            return []
+        paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+        out: list[str] = []
+        buf: list[str] = []
+        size = 0
+        for para in paras:
+            if len(para) > self.chunk_size:
+                if buf:
+                    out.append("\n\n".join(buf)); buf, size = [], 0
+                out.extend(RecursiveChunker(chunk_size=self.chunk_size).chunk(para))
+                continue
+            add = len(para) + (2 if buf else 0)
+            if size + add > self.chunk_size and buf:
+                out.append("\n\n".join(buf)); buf, size = [para], len(para)
+            else:
+                buf.append(para); size += add
+        if buf:
+            out.append("\n\n".join(buf))
+        return out
+
+
 class MetadataEnrichedChunker:
     """
     Chunk bằng một chunker nền, rồi chèn tiền tố ngữ cảnh lấy từ metadata vào
@@ -94,34 +166,33 @@ CORPUS_DIR = Path("data/hoc-bong")
 QUERIES: list[dict] = [
     {
         "id": "Q1",
-        "question": "Sinh viên cần GPA tích lũy bao nhiêu để nộp học bổng thành tích RMIT?",
+        "question": "Học bổng President's Excellence của VinUni chi trả những gì?",
         "filter": None,
     },
     {
         "id": "Q2",
-        "question": "Học bổng toàn phần cần giữ GPA bao nhiêu để được duy trì?",
+        "question": "Sinh viên VinUni cần GPA tối thiểu bao nhiêu để duy trì học bổng 100%?",
         "filter": None,
     },
     {
         "id": "Q3",
-        # Câu này KHÔNG nêu rõ người hỏi là ai, và corpus có hai tài liệu cùng
-        # nói về tiền hỗ trợ "mỗi tháng" nhưng khác đối tượng và khác đáp án:
-        #   - uet-merit-scholarship-2025-2026 (student): 1.850.000-4.200.000 đ/tháng
-        #   - ueh-faculty-support (faculty)   : +20 triệu đồng/tháng cho GS, PGS
-        # Đo được: không lọc -> 2/3 top-3 là tài liệu faculty (sai đối tượng);
-        # có lọc  -> 3/3 là student. Đây là số liệu A/B cho REPORT_NHOM.
-        "question": "Trường hỗ trợ bao nhiêu tiền mỗi tháng?",
-        "filter": {"audience": "student"},
+        "question": "Ở UET, học bổng loại Giỏi cho khóa QH-2023 đến QH-2025 là bao nhiêu mỗi tháng?",
+        "filter": None,
     },
     {
         "id": "Q4",
-        "question": "Điều kiện xét học bổng hỗ trợ học tập cho sinh viên hoàn cảnh khó khăn là gì?",
+        "question": "Sinh viên RMIT Việt Nam đang học cần bao nhiêu tín chỉ và GPA để xin học bổng thành tích 2026?",
         "filter": None,
     },
     {
+        # Câu cần metadata_filter. Corpus có hai tài liệu UEH cùng nói về "mức hỗ
+        # trợ tài chính" nhưng khác đối tượng và khác đáp án:
+        #   - ueh-learning-support-scholarship (student): 100% học phí TB 15 tín chỉ
+        #   - ueh-faculty-support (faculty)             : 500/300/150 triệu, +20 triệu/tháng
+        # Không lọc thì tài liệu giảng viên chiếm top-1.
         "id": "Q5",
-        "question": "Học bổng khuyến khích học tập UET trả bao nhiêu tiền mỗi tháng?",
-        "filter": None,
+        "question": "Ở UEH, mức hỗ trợ tài chính tối đa cho một học kỳ là bao nhiêu?",
+        "filter": {"audience": "student"},
     },
 ]
 
