@@ -94,6 +94,15 @@ for part in RecursiveChunker(chunk_size=body_size).chunk(body):
     chunks.append(f"{heading}\n{part}")
 ```
 
+Chiến lược thứ ba, `metadata_enriched`, không đổi cách cắt mà bọc một chunker nền rồi chèn tiền tố dựng từ front matter vào đầu mỗi chunk trước khi embed:
+
+```python
+def chunk_with_metadata(self, text, metadata):
+    prefix = f"[{' | '.join(metadata[f] for f in ('title','institution','audience') if metadata.get(f))}]"
+    return [f"{prefix}
+{c}" for c in self.base_chunker.chunk(text)]
+```
+
 Chiến lược theo đoạn tách tại dòng trắng, gom đoạn đến giới hạn rồi dùng `RecursiveChunker` cho đoạn quá dài. Cả hai là cấu hình thử nghiệm, chưa có cơ chế chuyên dụng để bảo toàn cả một bảng Markdown.
 
 ### So Sánh Giữa Các Thành Viên

@@ -70,6 +70,33 @@ Giải thích cách tiếp cận của bạn khi lập trình (implement) các p
 >
 > **Ba base case:** (1) `len(current_text) <= chunk_size` → trả thẳng `[current_text]`; (2) `remaining_separators` rỗng → cắt cứng theo `chunk_size` bằng slicing; (3) separator là chuỗi rỗng `""` → cắt theo từng ký tự. Trường hợp (2) là cái mà test `test_empty_separators_falls_back_gracefully` kiểm, vì nó truyền thẳng `separators=[]`. Lớp này **không có tham số overlap** — overlap chỉ tồn tại ở `FixedSizeChunker`.
 
+**Chiến lược riêng của tôi để benchmark — `metadata_enriched(recursive_280)`:**
+
+`MetadataEnrichedChunker` trong [`bench.py`](../bench.py) không phải một cách cắt mới. Nó **bọc** một chunker nền (`RecursiveChunker(chunk_size=280)`) rồi chèn một tiền tố dựng từ front matter vào đầu **mỗi** chunk, **trước khi embed**:
+
+```python
+class MetadataEnrichedChunker:
+    PREFIX_FIELDS = ("title", "institution", "audience")
+
+    def _prefix(self, metadata):
+        parts = [metadata[f] for f in self.prefix_fields if metadata.get(f)]
+        return f"[{' | '.join(parts)}]" if parts else ""
+
+    def chunk_with_metadata(self, text, metadata):
+        prefix = self._prefix(metadata)
+        chunks = self.base_chunker.chunk(text)
+        return [f"{prefix}
+{c}" for c in chunks] if prefix else chunks
+```
+
+Để chunker nhận được metadata, `build_documents()` kiểm tra `hasattr(chunker, "chunk_with_metadata")` và truyền front matter xuống; chunker nào không có method đó vẫn dùng giao diện `chunk(text)` như các lớp trong `src/`, nên harness giữ nguyên cho cả nhóm.
+
+**Lý do chọn.** Chunk trần chỉ mang con số và câu chữ của đoạn đó. Với corpus gộp 4 trường và 2 đối tượng, chunk như `| Chuẩn QH-2023 đến QH-2025 | 3.600.000đ/tháng | ... |` gần như không có nội dung ngữ nghĩa để embed — nó không nói mình thuộc trường nào, dành cho ai. Tiền tố bơm chính những thông tin đó vào vector.
+
+**Giả thuyết muốn kiểm.** Nếu `audience` đã nằm trong text được embed thì retrieval có tự phân biệt được đối tượng, khiến `metadata_filter` thành thừa hay không? Kết quả đo ở mục 5: tiền tố nâng điểm từ 1/10 lên 5/10 nhưng **không** làm giảm tỷ lệ sai đối tượng — giả thuyết sai, và lý do được phân tích ở đó.
+
+**Hạn chế đã biết.** Tiền tố chiếm chỗ trong mỗi chunk (độ dài trung bình tăng từ 167 lên 238 ký tự) nên với `chunk_size` nhỏ, phần nội dung thật còn lại ít đi. Ngoài ra tiền tố lặp y hệt nhau trên mọi chunk của cùng một tài liệu, nên nó không giúp phân biệt các đoạn **trong cùng** một tài liệu — đúng chỗ Q2 và Q5 vẫn hỏng.
+
 ### Lớp EmbeddingStore
 
 **`add_documents` + `search`** — hướng tiếp cận:
